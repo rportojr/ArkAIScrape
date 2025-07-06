@@ -52,7 +52,7 @@ ArkAIScrape/
 
 1. Prepare your input CSV file with at least these columns:
    - Company Name (One of 'Company', 'Company Name', 'company', 'company_name', 'CompanyName', 'COMPANY')
-   - Website
+   - Website (One of 'Website', 'website', 'URL', 'url', 'Web Site', 'Company Website', 'WEBSITE')
 
 2. Run the crawler:
 ```bash
@@ -83,6 +83,9 @@ Both output CSVs will contain the following columns:
 - State
 - Zip Code
 - Facebook Page
+- Facebook Page Name
+- Facebook Likes
+- Facebook About
 - LinkedIn Page
 - Public Email
 - Contact Person
