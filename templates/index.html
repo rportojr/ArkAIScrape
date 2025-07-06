@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Company Data Crawler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div x-data="crawlerApp()" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-blue-600 text-white shadow-lg">
+            <div class="container mx-auto px-4 py-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-robot text-3xl"></i>
+                        <div>
+                            <h1 class="text-2xl font-bold">AI Company Data Crawler</h1>
+                            <p class="text-blue-100">Extract comprehensive company information with AI</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm text-blue-100">Status</div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                            <span class="text-sm font-medium">Online</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="w-full px-4 py-8">
+            <!-- Upload Section -->
+            <div x-show="!currentJob" class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-lg shadow-lg p-8">
+                    <div class="text-center mb-8">
+                        <i class="fas fa-upload text-4xl text-blue-500 mb-4"></i>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2">Upload Your CSV File</h2>
+                        <p class="text-gray-600">Upload a CSV file with company information to start crawling</p>
+                    </div>
+
+                    <!-- File Upload -->
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+                         @dragover.prevent
+                         @drop.prevent="handleDrop($event)">
+                        <input type="file" 
+                               id="csvFile" 
+                               accept=".csv" 
+                               @change="handleFileSelect($event)"
+                               class="hidden">
+                        
+                        <div x-show="!selectedFile">
+                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-4"></i>
+                            <p class="text-lg text-gray-600 mb-2">Drag and drop your CSV file here</p>
+                            <p class="text-sm text-gray-500 mb-4">or</p>
+                            <button @click="$refs.fileInput.click()" 
+                                    class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">
+                                <i class="fas fa-folder-open mr-2"></i>Browse Files
+                            </button>
+                            <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" accept=".csv" class="hidden">
+                        </div>
+
+                        <div x-show="selectedFile" class="text-left">
+                            <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <i class="fas fa-file-csv text-2xl text-green-500"></i>
+                                    <div>
+                                        <p class="font-medium text-gray-800" x-text="selectedFile?.name"></p>
+                                        <p class="text-sm text-gray-500" x-text="formatFileSize(selectedFile?.size)"></p>
+                                    </div>
+                                </div>
+                                <button @click="selectedFile = null" class="text-red-500 hover:text-red-700">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CSV Requirements -->
+                    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h3 class="font-semibold text-blue-800 mb-2">
+                            <i class="fas fa-info-circle mr-2"></i>CSV Requirements
+                        </h3>
+                        <ul class="text-sm text-blue-700 space-y-1">
+                            <li>• Required column: <code class="bg-blue-100 px-1 rounded">Company Name</code> or <code class="bg-blue-100 px-1 rounded">Company</code></li>
+                            <li>• Optional column: <code class="bg-blue-100 px-1 rounded">Website</code> (auto-discovered if blank)</li>
+                            <li>• File format: CSV (.csv)</li>
+                            <li>• Maximum recommended: 100 companies per file</li>
+                        </ul>
+                    </div>
+
+                    <!-- Upload Button -->
+                    <div class="mt-8 text-center">
+                        <button @click="uploadFile()" 
+                                :disabled="!selectedFile || uploading"
+                                :class="selectedFile && !uploading ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-300 cursor-not-allowed'"
+                                class="px-8 py-3 text-white font-semibold rounded-lg transition-colors">
+                            <span x-show="!uploading">
+                                <i class="fas fa-rocket mr-2"></i>Start Processing
+                            </span>
+                            <span x-show="uploading">
+                                <i class="fas fa-spinner fa-spin mr-2"></i>Uploading...
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing Section -->
+            <div x-show="currentJob" class="w-full">
+                <!-- Progress Bar (full width) -->
+                <div class="bg-white rounded-lg shadow-lg p-6 mb-6 w-full">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Processing Progress</h3>
+                        <div class="text-sm text-gray-500" x-text="formatTime(jobStatus?.processing_time)"></div>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+                        <div class="bg-blue-600 h-3 rounded-full transition-all duration-500" 
+                             :style="'width: ' + (jobStatus?.progress_percentage || 0) + '%'">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="text-2xl font-bold text-gray-800" x-text="jobStatus?.total_companies || 0"></div>
+                            <div class="text-sm text-gray-600">Total</div>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <div class="text-2xl font-bold text-blue-600" x-text="jobStatus?.processed_companies || 0"></div>
+                            <div class="text-sm text-blue-600">Processed</div>
+                        </div>
+                        <div class="bg-green-50 p-3 rounded-lg">
+                            <div class="text-2xl font-bold text-green-600" x-text="jobStatus?.success_count || 0"></div>
+                            <div class="text-sm text-green-600">Success</div>
+                        </div>
+                        <div class="bg-red-50 p-3 rounded-lg">
+                            <div class="text-2xl font-bold text-red-600" x-text="jobStatus?.failure_count || 0"></div>
+                            <div class="text-sm text-red-600">Failed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-Time Results (full width) -->
+                <div class="bg-white rounded-lg shadow-lg p-6 mb-6 w-full">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Real-Time Results</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-xs md:text-sm">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="px-2 py-1">#</th>
+                                    <th class="px-2 py-1">Company Name</th>
+                                    <th class="px-2 py-1">Website</th>
+                                    <th class="px-2 py-1">Phone</th>
+                                    <th class="px-2 py-1">Address</th>
+                                    <th class="px-2 py-1">City</th>
+                                    <th class="px-2 py-1">State</th>
+                                    <th class="px-2 py-1">Zip</th>
+                                    <th class="px-2 py-1">Facebook</th>
+                                    <th class="px-2 py-1">FB Name</th>
+                                    <th class="px-2 py-1">FB Likes</th>
+                                    <th class="px-2 py-1">FB About</th>
+                                    <th class="px-2 py-1">LinkedIn</th>
+                                    <th class="px-2 py-1">Email</th>
+                                    <th class="px-2 py-1">Contact</th>
+                                    <th class="px-2 py-1">Time</th>
+                                    <th class="px-2 py-1">Status</th>
+                                    <th class="px-2 py-1">Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(row, idx) in getResultsTable()" :key="row.company_name + idx">
+                                    <tr :class="{
+                                        'bg-green-50': row.status === 'Success',
+                                        'bg-red-50': row.status && row.status !== 'Success' && row.status !== 'Processing',
+                                        'bg-blue-50': row.status === 'Processing',
+                                        'bg-yellow-50': row.status === 'Pending',
+                                    }">
+                                        <td class="px-2 py-1 text-center" x-text="idx+1"></td>
+                                        <td class="px-2 py-1" x-text="row.company_name"></td>
+                                        <td class="px-2 py-1" x-text="row.website"></td>
+                                        <td class="px-2 py-1" x-text="row.phone_number"></td>
+                                        <td class="px-2 py-1" x-text="row.street_address"></td>
+                                        <td class="px-2 py-1" x-text="row.city"></td>
+                                        <td class="px-2 py-1" x-text="row.state"></td>
+                                        <td class="px-2 py-1" x-text="row.zip_code"></td>
+                                        <td class="px-2 py-1" x-text="row.facebook_page"></td>
+                                        <td class="px-2 py-1" x-text="row.facebook_page_name"></td>
+                                        <td class="px-2 py-1" x-text="row.facebook_likes"></td>
+                                        <td class="px-2 py-1" x-text="row.facebook_about"></td>
+                                        <td class="px-2 py-1" x-text="row.linkedin_page"></td>
+                                        <td class="px-2 py-1" x-text="row.public_email"></td>
+                                        <td class="px-2 py-1" x-text="row.contact_person"></td>
+                                        <td class="px-2 py-1 text-center" x-text="formatTime(row.processing_time)"></td>
+                                        <td class="px-2 py-1 font-semibold" x-text="row.status"></td>
+                                        <td class="px-2 py-1" x-text="row.last_updated"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Download Section (full width) -->
+                <div x-show="jobStatus?.status === 'completed'" class="bg-white rounded-lg shadow-lg p-6 w-full">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-download mr-2 text-green-500"></i>Download Results
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <button @click="downloadFile('all')" 
+                                class="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg transition-colors">
+                            <i class="fas fa-file-csv text-xl mb-2"></i>
+                            <div class="font-medium">All Results</div>
+                            <div class="text-sm opacity-90" x-text="(jobStatus?.success_count + jobStatus?.failure_count) + ' companies'"></div>
+                        </button>
+                        <button @click="downloadFile('success')" 
+                                class="bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg transition-colors">
+                            <i class="fas fa-check-circle text-xl mb-2"></i>
+                            <div class="font-medium">Success Only</div>
+                            <div class="text-sm opacity-90" x-text="jobStatus?.success_count + ' companies'"></div>
+                        </button>
+                        <button @click="downloadFile('failure')" 
+                                class="bg-red-500 hover:bg-red-600 text-white p-4 rounded-lg transition-colors">
+                            <i class="fas fa-exclamation-circle text-xl mb-2"></i>
+                            <div class="font-medium">Failures Only</div>
+                            <div class="text-sm opacity-90" x-text="jobStatus?.failure_count + ' companies'"></div>
+                        </button>
+                    </div>
+                    <div class="mt-6 text-center">
+                        <button @click="startNewJob()" 
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors">
+                            <i class="fas fa-plus mr-2"></i>Process New File
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white py-8">
+            <div class="container mx-auto px-4 text-center">
+                <p class="text-gray-300">AI Company Data Crawler - Extract comprehensive company information with AI</p>
+                <p class="text-gray-400 text-sm mt-2">Built with FastAPI, Alpine.js, and Tailwind CSS</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        function crawlerApp() {
+            return {
+                selectedFile: null,
+                uploading: false,
+                currentJob: null,
+                jobStatus: null,
+                websocket: null,
+
+                init() {
+                    this.connectWebSocket();
+                },
+
+                connectWebSocket() {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+                    
+                    this.websocket = new WebSocket(wsUrl);
+                    
+                    this.websocket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'job_update') {
+                            this.jobStatus = data;
+                        }
+                    };
+                    
+                    this.websocket.onclose = () => {
+                        // Reconnect after 5 seconds
+                        setTimeout(() => this.connectWebSocket(), 5000);
+                    };
+                },
+
+                handleFileSelect(event) {
+                    const file = event.target.files[0];
+                    if (file && file.name.endsWith('.csv')) {
+                        this.selectedFile = file;
+                    } else {
+                        alert('Please select a CSV file');
+                    }
+                },
+
+                handleDrop(event) {
+                    const file = event.dataTransfer.files[0];
+                    if (file && file.name.endsWith('.csv')) {
+                        this.selectedFile = file;
+                    } else {
+                        alert('Please drop a CSV file');
+                    }
+                },
+
+                formatFileSize(bytes) {
+                    if (!bytes) return '';
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1048576) return Math.round(bytes / 1024) + ' KB';
+                    return Math.round(bytes / 1048576) + ' MB';
+                },
+
+                async uploadFile() {
+                    if (!this.selectedFile) return;
+                    
+                    this.uploading = true;
+                    const formData = new FormData();
+                    formData.append('file', this.selectedFile);
+                    
+                    try {
+                        const response = await fetch('/upload-csv', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (response.ok) {
+                            this.currentJob = await response.json();
+                            this.selectedFile = null;
+                        } else {
+                            const error = await response.json();
+                            alert('Error: ' + error.detail);
+                        }
+                    } catch (error) {
+                        alert('Upload failed: ' + error.message);
+                    } finally {
+                        this.uploading = false;
+                    }
+                },
+
+                getStatusText() {
+                    switch(this.jobStatus?.status) {
+                        case 'processing': return 'Processing companies...';
+                        case 'completed': return 'Processing completed!';
+                        case 'failed': return 'Processing failed';
+                        default: return 'Initializing...';
+                    }
+                },
+
+                formatTime(seconds) {
+                    if (!seconds) return '0s';
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = Math.floor(seconds % 60);
+                    return minutes > 0 ? `${minutes}m ${remainingSeconds}s` : `${remainingSeconds}s`;
+                },
+
+                async downloadFile(type) {
+                    if (!this.currentJob) return;
+                    
+                    const url = `/download/${this.currentJob.job_id}?file_type=${type}`;
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${type}_results_${this.currentJob.job_id}.csv`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+
+                startNewJob() {
+                    this.currentJob = null;
+                    this.jobStatus = null;
+                    this.selectedFile = null;
+                },
+
+                getResultsTable() {
+                    // Build a table of all companies, showing their current status
+                    if (!this.currentJob || !this.currentJob.total_companies) return [];
+                    // Build initial list from uploaded CSV (if available)
+                    let base = [];
+                    if (this.currentJob && this.currentJob.filename && this.currentJob.total_companies) {
+                        // If you want to fetch the original CSV, you could do so here
+                    }
+                    // Use jobStatus and results if available
+                    let results = [];
+                    if (this.jobStatus && this.jobStatus.results) {
+                        results = this.jobStatus.results;
+                    }
+                    // Fill in pending/processing for unprocessed companies
+                    const total = this.jobStatus?.total_companies || 0;
+                    const processed = results.length;
+                    // Try to get the current company being processed
+                    let currentCompany = this.jobStatus?.current_company;
+                    // Build a map for fast lookup
+                    const resultMap = {};
+                    results.forEach(r => {
+                        resultMap[r.company_name] = r;
+                    });
+                    // Compose the table
+                    let table = [];
+                    for (let i = 0; i < total; i++) {
+                        let row = results[i];
+                        if (!row) {
+                            // Pending or processing
+                            let status = 'Pending';
+                            if (i === processed && this.jobStatus?.status === 'processing') {
+                                status = 'Processing';
+                            }
+                            table.push({
+                                company_name: '', website: '', phone_number: '', street_address: '', city: '', state: '', zip_code: '',
+                                facebook_page: '', facebook_page_name: '', facebook_likes: '', facebook_about: '', linkedin_page: '',
+                                public_email: '', contact_person: '', processing_time: '', status, last_updated: ''
+                            });
+                        } else {
+                            // Already processed
+                            table.push(row);
+                        }
+                    }
+                    return table;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
