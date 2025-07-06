@@ -23,7 +23,7 @@ This Python-based crawler uses AI to extract company information from websites. 
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd ai-company-crawler
+cd ArkAIScrape
 ```
 
 2. Create a virtual environment (recommended):
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 ## Directory Structure
 
 ```
-ai-company-crawler/
+ArkAIScrape/
 ├── ai_server.py       # AI Server Configuration
 ├── run.py             # Main crawler script
 ├── webapp.py          # Web app script
