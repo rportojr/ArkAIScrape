@@ -37,6 +37,11 @@ source venv/bin/activate  # On Linux
 pip install -r requirements.txt
 ```
 
+## Folow the install video
+## Install Video:
+https://youtu.be/LXT6GQ3yXRo
+
+
 ## Directory Structure
 
 ```
