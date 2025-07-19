@@ -53,6 +53,11 @@ ArkAIScrape/
 └── output/            # Generated output files
 ```
 
+
+## example useage video
+https://youtu.be/5htH5nEfXe4
+
+
 ## Usage
 
 1. Prepare your input CSV file with at least these columns:
